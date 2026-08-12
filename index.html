@@ -139,7 +139,7 @@
       const name = document.getElementById('loc_name').value;
       const lat = parseFloat(document.getElementById('loc_lat').value);
       const lng = parseFloat(document.getElementById('loc_lng').value);
-      const decor = document.getElementById('loc_decor').value;
+      const decor_type = document.getElementById('loc_decor').value;
       const flower = document.getElementById('loc_flower').value;
 
       if (!name) {
@@ -261,7 +261,7 @@
     // 5. 儲存資料到 Supabase
     async function saveLocation(lat, lng) {
       const name = document.getElementById('loc_name').value;
-      const decor = document.getElementById('loc_decor').value;
+      const decor_type = document.getElementById('loc_decor').value;
       const flower = document.getElementById('loc_flower').value;
 
       if (!name) {
