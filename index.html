@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>澳門蘑菇地圖 Macau Mushroom Map</title>
+  
+  <!-- 引入 Leaflet 地圖套件 CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 地圖容器 -->
+  <div id="map"></div>
+
+  <!-- 引入 Leaflet 地圖套件 JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    // 1. 初始化地圖，定位喺澳門 (緯度, 經度, 縮放層級)
+    const map = L.map('map').setView([22.1987, 113.5439], 13);
+
+    // 2. 載入 OpenStreetMap 地圖底圖
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 3. 模擬資料庫：澳門地點資料 (名稱, 緯度, 經度, 備註)
+    const macauLocations = [
+      { name: "大三巴牌坊", lat: 22.1977, lng: 113.5407, type: "紅蘑菇" },
+      { name: "東望洋燈塔", lat: 22.1965, lng: 113.5497, type: "藍蘑菇" },
+      { name: "氹仔官也街", lat: 22.1538, lng: 113.5568, type: "黃蘑菇" },
+      { name: "路環市區", lat: 22.1165, lng: 113.5516, type: "紫蘑菇" }
+    ];
+
+    // 4. 用 Loop 將每個地點印上地圖
+    macauLocations.forEach(loc => {
+      L.marker([loc.lat, loc.lng])
+        .addTo(map)
+        .bindPopup(`<b>${loc.name}</b><br>種類：${loc.type}`);
+    });
+  </script>
+</body>
+</html>
