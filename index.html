@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>澳門 Pikmin 蘑菇地圖</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    .add-form { font-size: 14px; line-height: 1.6; }
+    .add-form input, .add-form select { width: 100%; margin-bottom: 8px; padding: 4px; box-sizing: border-box; }
+    .add-form button { width: 100%; background: #4CAF50; color: white; border: none; padding: 6px; cursor: pointer; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    // 1. 設定你的 Supabase 憑證 (請替換成你的 Supabase Project URL 同 anon key)
+    const SUPABASE_URL = 'https://awgjgfarejsbldpplzzr.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_kYm-yesQzTwAisoTSz19sA_L3tHDB-B';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 2. 初始化澳門地圖
+    const map = L.map('map').setView([22.1987, 113.5439], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let tempMarker = null;
+
+    // 3. 從 Supabase 讀取並顯示所有蘑菇
+    async function loadLocations() {
+      const { data, error } = await db.from('pikmin_locations').select('*');
+      if (error) {
+        console.error('讀取失敗:', error);
+        return;
+      }
+
+      data.forEach(loc => {
+        L.marker([loc.lat, loc.lng])
+          .addTo(map)
+          .bindPopup(`
+            <div style="font-size: 14px;">
+              <b style="color: #d32f2f;">🍄 ${loc.name}</b><br>
+              <b>類型：</b>${loc.type}<br>
+              <b>狀態：</b>${loc.status}
+            </div>
+          `);
+      });
+    }
+
+    // 4. 點擊地圖任何位置：跳出表格供使用者新增地點
+    map.on('click', function(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      if (tempMarker) map.removeLayer(tempMarker);
+
+      const formContent = `
+        <div class="add-form">
+          <b>➕ 新增 Pikmin 地點</b><br>
+          <input type="text" id="loc_name" placeholder="地點名稱 (例: 大三巴)" required />
+          <select id="loc_type">
+            <option value="普通紅蘑菇">普通紅蘑菇</option>
+            <option value="大紅蘑菇">大紅蘑菇</option>
+            <option value="巨型藍蘑菇">巨型藍蘑菇</option>
+            <option value="特殊花朵">特殊花朵</option>
+          </select>
+          <input type="text" id="loc_status" placeholder="狀態 (例: 剩餘2人 / 盛開)" value="待打" />
+          <button onclick="saveLocation(${lat}, ${lng})">儲存地點</button>
+        </div>
+      `;
+
+      tempMarker = L.popup()
+        .setLatLng([lat, lng])
+        .setContent(formContent)
+        .openOn(map);
+    });
+
+    // 5. 將使用者輸入嘅資料寫入 Supabase
+    async function saveLocation(lat, lng) {
+      const name = document.getElementById('loc_name').value;
+      const type = document.getElementById('loc_type').value;
+      const status = document.getElementById('loc_status').value;
+
+      if (!name) {
+        alert('請輸入地點名稱！');
+        return;
+      }
+
+      const { data, error } = await db.from('pikmin_locations').insert([
+        { name: name, type: type, status: status, lat: lat, lng: lng }
+      ]);
+
+      if (error) {
+        alert('新增失敗，請檢查 Supabase 設定');
+        console.error(error);
+      } else {
+        alert('新增成功！');
+        map.closePopup();
+        // 重新載入地圖標籤
+        loadLocations();
+      }
+    }
+
+    // 頁面載入時讀取資料
+    loadLocations();
+  </script>
+</body>
+</html>
