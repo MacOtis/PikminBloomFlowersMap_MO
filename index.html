@@ -15,20 +15,7 @@
     .popup-form label { font-weight: bold; font-size: 12px; margin-top: 6px; display: block; }
     .popup-form input, .popup-form select { width: 100%; margin-top: 2px; margin-bottom: 6px; padding: 5px; box-sizing: border-box; }
     .popup-form button { width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
-    
-    /* 定位按鈕樣式 */
-    .leaflet-control-locate {
-      background-color: #fff;
-      border-bottom: 1px solid #ccc;
-      width: 30px;
-      height: 30px;
-      line-height: 30px;
-      text-align: center;
-      cursor: pointer;
-      font-size: 16px;
-      display: block;
-    }
-    .leaflet-control-locate:hover { background-color: #f4f4f4; }
+    .leaflet-control-locate { background-color: #fff; border-bottom: 1px solid #ccc; width: 30px; height: 30px; line-height: 30px; text-align: center; cursor: pointer; font-size: 16px; display: block; }
   </style>
 </head>
 <body>
@@ -43,209 +30,85 @@
     const SUPABASE_KEY = 'sb_publishable_kYm-yesQzTwAisoTSz19sA_L3tHDB-B';
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. 初始化澳門地圖
+    // 2. 初始化地圖
     const map = L.map('map').setView([22.1987, 113.5439], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors'
+      maxZoom: 19, attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
     let tempMarker = null;
 
-    // 3. 讀取 Supabase 所有飾品地點 (讀取 pikmin_locations 資料表)
+    // 3. 讀取資料 (注意：確認 table 名係 pikmin_locations)
     async function loadLocations() {
       const { data, error } = await db.from('pikmin_locations').select('*');
-      if (error) {
-        console.error('讀取失敗:', error);
-        return;
-      }
+      if (error) { console.error('讀取失敗:', error.message); return; }
 
       data.forEach(loc => {
         L.marker([loc.lat, loc.lng])
           .addTo(map)
-          .bindPopup(`
-            <div style="font-size: 14px;">
-              <b style="color: #2e7d32; font-size: 16px;">📍 ${loc.name}</b><br><br>
-              <b>🎁 飾品種類：</b>${loc.decor_type || '未標註'}<br>
-              <small style="color: #666;">座標: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}</small>
-            </div>
-          `);
+          .bindPopup(`<b>📍 ${loc.name}</b><br>🎁 飾品: ${loc.decor_type}`);
       });
     }
 
-    // 4. 點擊地圖新增地點 (可直接手動輸入/修改座標)
+    // 4. 點擊新增地點
     map.on('click', function(e) {
-      const defaultLat = e.latlng.lat.toFixed(6);
-      const defaultLng = e.latlng.lng.toFixed(6);
-
       if (tempMarker) map.removeLayer(tempMarker);
-
       const formContent = `
         <div class="popup-form">
-          <b style="color: #1b5e20;">➕ 新增飾品地點</b><br>
-          
           <label>📍 地點名稱：</label>
-          <input type="text" id="loc_name" placeholder="例: 大三巴牌坊" required />
-          
-          <label>🌐 緯度 (Latitude):</label>
-          <input type="number" step="any" id="loc_lat" value="${defaultLat}" />
-
-          <label>🌐 經度 (Longitude):</label>
-          <input type="number" step="any" id="loc_lng" value="${defaultLng}" />
-
+          <input type="text" id="loc_name" />
+          <label>🌐 緯度：</label>
+          <input type="number" step="any" id="loc_lat" value="${e.latlng.lat.toFixed(6)}" />
+          <label>🌐 經度：</label>
+          <input type="number" step="any" id="loc_lng" value="${e.latlng.lng.toFixed(6)}" />
           <label>🎁 飾品種類：</label>
           <select id="loc_decor">
-            <option value="🚌 公車/巴士">🚌 公車/巴士</option>
-            <option value="☕ 咖啡館">☕ 咖啡館</option>
-            <option value="🍰 甜點店">🍰 甜點店</option>
-            <option value="🍣 壽司店">🍣 壽司店</option>
-            <option value="🎬 電影院">🎬 電影院</option>
-            <option value="🌳 公園">🌳 公園</option>
-            <option value="🛒 超市">🛒 超市</option>
-            <option value="💊 藥局">💊 藥局</option>
-            <option value="🎨 美術館/博物館">🎨 美術館/博物館</option>
-            <option value="❓ 其他/未知">❓ 其他/未知</option>
+            <option>🚌 公車/巴士</option><option>☕ 咖啡館</option><option>🍰 甜點店</option>
+            <option>🍣 壽司店</option><option>🎬 電影院</option><option>🌳 公園</option>
+            <option>🛒 超市</option><option>💊 藥局</option><option>🎨 美術館/博物館</option>
           </select>
-
           <button onclick="saveLocation()">儲存地點</button>
         </div>
       `;
-
-      tempMarker = L.popup()
-        .setLatLng([e.latlng.lat, e.latlng.lng])
-        .setContent(formContent)
-        .openOn(map);
+      tempMarker = L.popup().setLatLng(e.latlng).setContent(formContent).openOn(map);
     });
 
-    // 5. 儲存資料到 Supabase
+    // 5. 儲存資料
     async function saveLocation() {
-      const name = document.getElementById('loc_name').value;
-      const lat = parseFloat(document.getElementById('loc_lat').value);
-      const lng = parseFloat(document.getElementById('loc_lng').value);
-      const decor = document.getElementById('loc_decor').value;
+      const payload = {
+        name: document.getElementById('loc_name').value,
+        lat: parseFloat(document.getElementById('loc_lat').value),
+        lng: parseFloat(document.getElementById('loc_lng').value),
+        decor_type: document.getElementById('loc_decor').value
+      };
 
-      if (!name) {
-        alert('請填寫地點名稱！');
-        return;
-      }
-      if (isNaN(lat) || isNaN(lng)) {
-        alert('請填寫正確嘅經緯度座標！');
-        return;
-      }
-
-      // 寫入 Supabase，created_time 會自動帶入現在時間
-      const { data, error } = await db.from('pikmin_locations').insert([
-        { 
-          name: name, 
-          decor_type: decor, 
-          lat: lat, 
-          lng: lng,
-          created_time: new Date().toISOString()
-        }
-      ]);
+      // 改用更簡單嘅 insert，唔帶 created_time (由 db 自動處理)
+      const { error } = await db.from('pikmin_locations').insert([payload]);
 
       if (error) {
-        alert('新增失敗，請檢查 Supabase 設定！');
-        console.error(error);
+        alert('新增失敗: ' + error.message); // 呢度會話你知具體錯咩
       } else {
-        alert('新增成功！感謝舉報！');
+        alert('新增成功！');
         map.closePopup();
         loadLocations();
       }
     }
 
-    // 6. 加入「定位按鈕」（位處左上角 + / - 縮放按鈕下方）
+    // 6. 定位按鈕
     const locateControl = L.control({ position: 'topleft' });
-
-    locateControl.onAdd = function (map) {
+    locateControl.onAdd = function() {
       const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-      div.innerHTML = '<a class="leaflet-control-locate" title="顯示目前位置">🎯</a>';
-      div.onclick = function(e) {
-        e.stopPropagation();
-        map.locate({ setView: true, maxZoom: 16 });
-      };
+      div.innerHTML = '<a class="leaflet-control-locate">🎯</a>';
+      div.onclick = (e) => { e.stopPropagation(); map.locate({ setView: true, maxZoom: 16 }); };
       return div;
     };
-
     locateControl.addTo(map);
+    map.on('locationfound', (e) => L.circle(e.latlng, { radius: e.accuracy/2 }).addTo(map));
 
-    // 定位成功顯示圓圈
-    map.on('locationfound', function(e) {
-      L.circle(e.latlng, { radius: e.accuracy / 2, color: 'blue', fillOpacity: 0.3 }).addTo(map);
-    });
-
-    // 定位失敗提示
-    map.on('locationerror', function(e) {
-      alert("無法獲取位置，請確定瀏覽器已開放 GPS 權限。");
-    });
-
-    // 頁面載入時自動讀取
     loadLocations();
   </script>
 </body>
 </html>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
-  <script>
-    // 1. 填入 Supabase 憑證
-    const SUPABASE_URL = 'https://YOUR_SUPABASE_PROJECT_ID.supabase.co';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // 2. 初始化澳門地圖
-    const map = L.map('map').setView([22.1987, 113.5439], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    let tempMarker = null;
-
-    // 3. 讀取 Supabase 所有飾品地點
-    async function loadLocations() {
-      const { data, error } = await db.from('pikmin_locations').select('*');
-      if (error) {
-        console.error('讀取失敗:', error);
-        return;
-      }
-
-      data.forEach(loc => {
-        L.marker([loc.lat, loc.lng])
-          .addTo(map)
-          .bindPopup(`
-            <div style="font-size: 14px;">
-              <b style="color: #2e7d32; font-size: 16px;">📍 ${loc.name}</b><br><br>
-              <b>🎁 飾品種類：</b>${loc.decor_type || '未標註'}<br>
-              <b>🌸 大花狀態：</b>${loc.flower_type || '未標註'}<br>
-              <small style="color: #666;">座標: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}</small>
-            </div>
-          `);
-      });
-    }
-
-    // 4. 點擊地圖新增地點 (支援手動輸入經緯度)
-    map.on('click', function(e) {
-      const defaultLat = e.latlng.lat.toFixed(6);
-      const defaultLng = e.latlng.lng.toFixed(6);
-
-      if (tempMarker) map.removeLayer(tempMarker);
-
-      const formContent = `
-        <div class="popup-form">
-          <b style="color: #1b5e20;">➕ 新增飾品 / 大花地點</b><br>
-          
-          <label>📍 地點名稱：</label>
-          <input type="text" id="loc_name" placeholder="例: 大三巴牌坊" required />
-          
-          <label>🌐 緯度 (Latitude):</label>
-          <input type="number" step="any" id="loc_lat" value="${defaultLat}" />
-
-          <label>🌐 經度 (Longitude):</label>
-          <input type="number" step="any" id="loc_lng" value="${defaultLng}" />
-
-          <label>🎁 飾品種類：</label>
-          <select id="loc_decor">
             <option value="🚌 公車/巴士">🚌 公車/巴士</option>
             <option value="☕ 咖啡館">☕ 咖啡館</option>
             <option value="🍰 甜點店">🍰 甜點店</option>
