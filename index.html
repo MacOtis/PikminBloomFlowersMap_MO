@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>澳門 Pikmin 飾品與大花地圖</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { margin: 0; padding: 0; font-family: sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    .popup-form { font-size: 14px; line-height: 1.5; }
+    .popup-form input, .popup-form select { width: 100%; margin-bottom: 8px; padding: 5px; box-sizing: border-box; }
+    .popup-form button { width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    // 1. 填入 Supabase 憑證
+    const SUPABASE_URL = 'https://awgjgfarejsbldpplzzr.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_kYm-yesQzTwAisoTSz19sA_L3tHDB-B';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 2. 初始化澳門地圖
+    const map = L.map('map').setView([22.1987, 113.5439], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let tempMarker = null;
+
+    // 3. 讀取 Supabase 所有飾品地點
+    async function loadLocations() {
+      const { data, error } = await db.from('pikmin_locations').select('*');
+      if (error) {
+        console.error('讀取失敗:', error);
+        return;
+      }
+
+      data.forEach(loc => {
+        L.marker([loc.lat, loc.lng])
+          .addTo(map)
+          .bindPopup(`
+            <div style="font-size: 14px;">
+              <b style="color: #2e7d32; font-size: 16px;">📍 ${loc.name}</b><br><br>
+              <b>🎁 飾品種類：</b>${loc.decor_type || '未標註'}<br>
+              <b>🌸 大花狀態：</b>${loc.flower_type || '未標註'}
+            </div>
+          `);
+      });
+    }
+
+    // 4. 點擊地圖新增飾品點
+    map.on('click', function(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      if (tempMarker) map.removeLayer(tempMarker);
+
+      const formContent = `
+        <div class="popup-form">
+          <b>➕ 新增飾品 / 大花地點</b><br><br>
+          <input type="text" id="loc_name" placeholder="地點名稱 (例: 關閘巴士總站)" required />
+          
+          <label>🎁 飾品種類：</label>
+          <select id="loc_decor">
+            <option value="🚌 公車/巴士">🚌 公車/巴士</option>
+            <option value="☕ 咖啡館">☕ 咖啡館</option>
+            <option value="🍰 甜點店">🍰 甜點店</option>
+            <option value="🍣 壽司店">🍣 壽司店</option>
+            <option value="🎬 電影院">🎬 電影院</option>
+            <option value="🌳 公園">🌳 公園</option>
+            <option value="🛒 超市">🛒 超市</option>
+            <option value="💊 藥局">💊 藥局</option>
+            <option value="🎨 美術館/博物館">🎨 美術館/博物館</option>
+            <option value="❓ 其他/未知">❓ 其他/未知</option>
+          </select>
+
+          <label>🌸 大花種類：</label>
+          <input type="text" id="loc_flower" placeholder="例: 普通紅花 / 向日葵" value="普通大花" />
+
+          <button onclick="saveLocation(${lat}, ${lng})">新增到地圖</button>
+        </div>
+      `;
+
+      tempMarker = L.popup()
+        .setLatLng([lat, lng])
+        .setContent(formContent)
+        .openOn(map);
+    });
+
+    // 5. 儲存資料到 Supabase
+    async function saveLocation(lat, lng) {
+      const name = document.getElementById('loc_name').value;
+      const decor = document.getElementById('loc_decor').value;
+      const flower = document.getElementById('loc_flower').value;
+
+      if (!name) {
+        alert('請填寫地點名稱！');
+        return;
+      }
+
+      const { data, error } = await db.from('pikmin_locations').insert([
+        { name: name, decor_type: decor, flower_type: flower, lat: lat, lng: lng }
+      ]);
+
+      if (error) {
+        alert('新增失敗，請檢查 Supabase 設定！');
+        console.error(error);
+      } else {
+        alert('新增成功！感謝舉報！');
+        map.closePopup();
+        loadLocations();
+      }
+    }
+
+    // 頁面載入時自動讀取
+    loadLocations();
+  </script>
+</body>
+</html>
