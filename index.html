@@ -123,6 +123,31 @@
     }
 
     // 頁面載入時自動讀取
+    
+    // 6. 加入定位按鈕功能
+const locateBtn = L.control({ position: 'topright' });
+
+locateBtn.onAdd = function (map) {
+  const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+  div.innerHTML = '<button style="width:30px;height:30px;cursor:pointer;">📍</button>';
+  div.onclick = function() {
+    map.locate({ setView: true, maxZoom: 16 });
+  };
+  return div;
+};
+
+locateBtn.addTo(map);
+
+// 成功定位後顯示藍點
+map.on('locationfound', function(e) {
+  L.circle(e.latlng, { radius: e.accuracy / 2, color: 'blue', fillOpacity: 0.5 }).addTo(map);
+});
+
+// 定位失敗提醒
+map.on('locationerror', function(e) {
+  alert("無法獲取位置，請檢查手機 GPS 設定。");
+});
+
     loadLocations();
   </script>
 </body>
