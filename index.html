@@ -16,6 +16,7 @@
     .popup-form input, .popup-form select { width: 100%; margin-top: 2px; margin-bottom: 6px; padding: 5px; box-sizing: border-box; }
     .popup-form button { width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
     .leaflet-control-locate { background-color: #fff; border-bottom: 1px solid #ccc; width: 30px; height: 30px; line-height: 30px; text-align: center; cursor: pointer; font-size: 16px; display: block; }
+    .leaflet-control-locate:hover { background-color: #f4f4f4; }
   </style>
 </head>
 <body>
@@ -30,10 +31,143 @@
     const SUPABASE_KEY = 'sb_publishable_kYm-yesQzTwAisoTSz19sA_L3tHDB-B';
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. 初始化地圖
+    // 2. 初始化澳門地圖
     const map = L.map('map').setView([22.1987, 113.5439], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let tempMarker = null;
+
+    // 3. 讀取 Supabase 所有地點
+    async function loadLocations() {
+      const { data, error } = await db.from('pikmin_locations').select('*');
+      if (error) {
+        console.error('讀取失敗:', error.message);
+        return;
+      }
+
+      data.forEach(loc => {
+        L.marker([loc.lat, loc.lng])
+          .addTo(map)
+          .bindPopup(`
+            <div style="font-size: 14px;">
+              <b style="color: #2e7d32; font-size: 16px;">📍 ${loc.name}</b><br><br>
+              <b>🎁 飾品種類：</b>${loc.decor_type || '未標註'}<br>
+              <small style="color: #666;">座標: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}</small>
+            </div>
+          `);
+      });
+    }
+
+    // 4. 點擊地圖新增地點
+    map.on('click', function(e) {
+      const defaultLat = e.latlng.lat.toFixed(6);
+      const defaultLng = e.latlng.lng.toFixed(6);
+
+      if (tempMarker) map.removeLayer(tempMarker);
+
+      const formContent = `
+        <div class="popup-form">
+          <b style="color: #1b5e20;">➕ 新增飾品地點</b><br>
+          
+          <label>📍 地點名稱：</label>
+          <input type="text" id="loc_name" placeholder="例: 大三巴牌坊" required />
+          
+          <label>🌐 緯度 (Latitude):</label>
+          <input type="number" step="any" id="loc_lat" value="${defaultLat}" />
+
+          <label>🌐 經度 (Longitude):</label>
+          <input type="number" step="any" id="loc_lng" value="${defaultLng}" />
+
+          <label>🎁 飾品種類：</label>
+          <select id="loc_decor">
+            <option value="🚌 公車/巴士">🚌 公車/巴士</option>
+            <option value="☕ 咖啡館">☕ 咖啡館</option>
+            <option value="🍰 甜點店">🍰 甜點店</option>
+            <option value="🍣 壽司店">🍣 壽司店</option>
+            <option value="🎬 電影院">🎬 電影院</option>
+            <option value="🌳 公園">🌳 公園</option>
+            <option value="🛒 超市">🛒 超市</option>
+            <option value="💊 藥局">💊 藥局</option>
+            <option value="🎨 美術館/博物館">🎨 美術館/博物館</option>
+            <option value="❓ 其他/未知">❓ 其他/未知</option>
+          </select>
+
+          <button onclick="saveLocation()">儲存地點</button>
+        </div>
+      `;
+
+      tempMarker = L.popup()
+        .setLatLng([e.latlng.lat, e.latlng.lng])
+        .setContent(formContent)
+        .openOn(map);
+    });
+
+    // 5. 儲存資料到 Supabase (已完全修正欄位對應)
+    async function saveLocation() {
+      const name = document.getElementById('loc_name').value;
+      const lat = parseFloat(document.getElementById('loc_lat').value);
+      const lng = parseFloat(document.getElementById('loc_lng').value);
+      const decor_type = document.getElementById('loc_decor').value;
+
+      if (!name) {
+        alert('請填寫地點名稱！');
+        return;
+      }
+      if (isNaN(lat) || isNaN(lng)) {
+        alert('請填寫正確嘅經緯度座標！');
+        return;
+      }
+
+      // 確定傳入嘅物件欄位名稱係 decor_type
+      const { data, error } = await db.from('pikmin_locations').insert([
+        { 
+          name: name, 
+          lat: lat, 
+          lng: lng, 
+          decor_type: decor_type 
+        }
+      ]);
+
+      if (error) {
+        alert('新增失敗: ' + error.message);
+        console.error(error);
+      } else {
+        alert('新增成功！感謝舉報！');
+        map.closePopup();
+        loadLocations();
+      }
+    }
+
+    // 6. 左側定位按鈕 (+/- 號下方)
+    const locateControl = L.control({ position: 'topleft' });
+
+    locateControl.onAdd = function (map) {
+      const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+      div.innerHTML = '<a class="leaflet-control-locate" title="顯示目前位置">🎯</a>';
+      div.onclick = function(e) {
+        e.stopPropagation();
+        map.locate({ setView: true, maxZoom: 16 });
+      };
+      return div;
+    };
+
+    locateControl.addTo(map);
+
+    map.on('locationfound', function(e) {
+      L.circle(e.latlng, { radius: e.accuracy / 2, color: 'blue', fillOpacity: 0.3 }).addTo(map);
+    });
+
+    map.on('locationerror', function(e) {
+      alert("無法獲取位置，請確定瀏覽器已開放 GPS 權限。");
+    });
+
+    // 頁面載入時自動讀取
+    loadLocations();
+  </script>
+</body>
+</html>
     }).addTo(map);
 
     let tempMarker = null;
